@@ -40,6 +40,7 @@ try:
     count=0
     while adc() != 0:
         time.sleep(0.01)
+    print('начало зарядки конденсатора')
     while cur_signal < 256*0.9:
         cur_signal=adc()
         result_izm.append(cur_signal)
@@ -57,7 +58,8 @@ try:
             GPIO.output(leds, 0)'''
         
     GPIO.setup(troyka,GPIO.OUT, initial=GPIO.HIGH)
-    
+
+    print('начало разрядки конденсатора') 
     while cur_signal > 256*0.23:
         cur_signal=adc()
         result_izm.append(cur_signal)
@@ -82,7 +84,7 @@ try:
             f.write(str(i) + '\n')
     with open('settings.txt', 'w') as f:
         f.write(str(1/time_experiment/count) + '\n')
-        f.write('0.01')
+        f.write('0.0114')
     
     print('общая продолжительность эксперимента {}, период одного измерения {}, средняя частота дискретизации {}, шаг квантования АЦП {}'.format(time_experiment, time_experiment/count, 1/time_experiment/count, 0.01))
 
