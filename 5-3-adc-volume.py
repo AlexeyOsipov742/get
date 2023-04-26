@@ -15,25 +15,29 @@ GPIO.setup(comp, GPIO.IN)
 def decimal2binary(value):
     return [int(element) for element in bin(value)[2:].zfill(8)]
 
-def adc(value):
+def volts(value):
     return value/256 * maxVoltage
+
+def adc():
+    cur_signal = 0
+    for i in range(7, -1, -1):
+        cur_signal += 2**i
+        signal = decimal2binary(cur_signal) 
+        GPIO.output(dac, signal)
+        time.sleep(0.001)
+        comp_value = GPIO.input(comp)
+        if comp_value == 0:
+            cur_signal -= 2**i
+    return cur_signal
 
 
 
 try:
     while True:
-        cur_signal = 0
-        for i in range(7, -1, -1):
-            cur_signal += 2**i
-            signal = decimal2binary(cur_signal) 
-            GPIO.output(dac, signal)
-            voltage = adc(cur_signal)
-            time.sleep(0.001)
-            comp_value = GPIO.input(comp)
-            if comp_value == 0:
-                cur_signal -= 2**i
+        cur_signal = adc()
+        voltage = volts(cur_signal)
         print(cur_signal, voltage)
-        led_signal = int(cur_signal/4.625)
+        led_signal = int(cur_signal/12)
         for i in range(led_signal):
             GPIO.output(leds[i], 1)
         for j in range(i+1, 8):
