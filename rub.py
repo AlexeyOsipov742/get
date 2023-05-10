@@ -1,84 +1,47 @@
-import RPi.GPIO as gpio
-import time
 from matplotlib import pyplot
+import numpy
+from textwrap import wrap
+import matplotlib.ticker as ticker
 
-gpio.setmode(gpio.BCM)
+with open('settings.txt') as file:
+    settings=[float(i) for i in file.read().split('\n')]
+#считываем показания компаратора и переводим через шаг квантования в вольиты
+data=numpy.loadtxt('data.txt', dtype=int) * settings[1]
+#массив времен, создаваемый черед количество измерений и известный шаг по времени
+data_time=numpy.array([i*settings[0] for i in range(data.size)])
+#параметры фигуры
+fig, ax=pyplot.subplots(figsize=(16, 10), dpi=500)
 
-leds=[21, 20, 16, 12, 7, 8, 25, 24]
-gpio.setup(leds, gpio.OUT)
+#минимальные и максимальные значения для осей
+ax.axis([data_time.min(), data_time.max()+1, data.min(), data.max()+0.2])
 
-dac=[26, 19, 13, 6, 5, 11, 9, 10]
-gpio.setup(dac, gpio.OUT, initial=gpio.HIGH)
+#  Устанавливаем интервал основных делений:
+ax.xaxis.set_major_locator(ticker.MultipleLocator(2))
+#  Устанавливаем интервал вспомогательных делений:
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
 
-comp=4
-troyka=17 
-gpio.setup(troyka,gpio.OUT, initial=gpio.HIGH)
-gpio.setup(comp, gpio.IN)
+#  Тоже самое проделываем с делениями на оси "y":
+ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 
-#снятие показаний с тройки
-def adc():
-    k=0
-    for i in range(7, -1, -1):
-        k+=2**i
-        gpio.output(dac, perev(k))
-        time.sleep(0.005)
-        if gpio.input(comp)==0:
-            k-=2**i
-    return k
+#название графика с условием для переноса строки и центрированием
+ax.set_title("\n".join(wrap('процесс заряда и разряда конденсатора в RC цепи', 60)), loc = 'center')
 
-#перевод в двоичную
-def perev(a):
-    return [int (elem) for elem in bin(a)[2:].zfill(8)]
+#сетка основная и второстепенная
+ax.grid(which='major', color = 'k')
+ax.minorticks_on()
+ax.grid(which='minor', color = 'gray', linestyle = ':')
 
-try:
-    napr=0
-    result_ismer=[]
-    time_start=time.time()
-    count=0
+#подпись осей
+ax.set_ylabel("напряжение, В")
+ax.set_xlabel("время, с")
 
-    #зарядка конденсатора, запис показаний в процессе
-    print('начало зарядки конденсатора')
-    while napr<256*0.25:
-        napr=adc()
-        result_ismer.append(napr)
-        time.sleep(0)
-        count+=1
-        gpio.output(leds, perev(napr))
+#линия с легендой
+ax.plot(data_time, data, c='black', linewidth=1, label = 'V(t)')
+ax.scatter(data_time[0:data.size:20], data[0:data.size:20], marker = 's', c = 'blue', s=10)
 
-    gpio.setup(troyka,gpio.OUT, initial=gpio.LOW)
+ax.legend(shadow = False, loc = 'right', fontsize = 30)
 
-    #разрядка конденсатора, запис показаний в процессе
-    print('начало разрядки конденсатора')
-    while napr>256*0.02:
-        napr=adc()
-        result_ismer.append(napr)
-        time.sleep(0)
-        count+=1
-        gpio.output(leds, perev(napr))
-
-    time_experiment=time.time()-time_start
-
-    #запись данных в файлы
-    print('запись данных в файл')
-    with open('data.txt', 'w') as f:
-        for i in result_ismer:
-            f.write(str(i) + '\n')
-    with open('settings.txt', 'w') as f:
-        f.write(str(1/time_experiment/count) + '\n')
-        f.write('0.01289')
-    
-    print('общая продолжительность эксперимента {}, период одного измерения {}, средняя частота дискретизации {}, шаг квантования АЦП {}'.format(time_experiment, time_experiment/count, 1/time_experiment/count, 0.013))
-
-    #графики
-    print('построение графиков')
-    y=[i/256*3.3 for i in result_ismer]
-    x=[i*time_experiment/count for i in range(len(result_ismer))]
-    pyplot.plot(x, y)
-    pyplot.xlabel('время')
-    pyplot.ylabel('вольтаж')
-    pyplot.show()
-
-finally:
-    gpio.output(leds, 0)
-    gpio.output(dac, 0)
-    gpio.cleanup()
+#сохранение
+fig.savefig('graph.png')
+fig.savefig('graph.svg')
